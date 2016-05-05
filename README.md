@@ -2,7 +2,6 @@
 EasyScript Interpreter
 
 # Grammar
-
 Program: StatementList
 Statement: IfClause | WhileClause | Assignment ';'
 StatementList: Statement*
