@@ -2,6 +2,7 @@
 EasyScript Interpreter
 
 # Grammar
+``` grammar
 Program: StatementList
 Statement: IfClause | WhileClause | Assignment ';'
 StatementList: Statement*
@@ -17,9 +18,10 @@ Sum: Product(('+'|'-')Product)*
 Product: Primary(('*'|'/')Primary)*
 Primary: '('Comparison')' FuncCallArguments? | ARG FuncCall? - Primary
 FuncCallArguments: '(' Expression (',' Expression)* ')'
-
+```
 
 # Example 
+``` ex
 a = 1 + 2; //3
 b = a + 1; //4
 c = a == b; //false
@@ -32,3 +34,4 @@ while (a < b + 10){
 	print(a);
 	a = a + 1;
 }
+```
