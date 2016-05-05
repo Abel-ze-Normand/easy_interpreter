@@ -3,38 +3,21 @@ EasyScript Interpreter
 
 # Grammar
 
-Program:
-  StatementList
-Statement:
-  IfClause | WhileClause | Assignment ';'
-StatementList:
-  Statement*
-Assignment:
-  Expression ('=' Expression)?
-IfClause:
-  'if''('Expression')''{'StatementList'}'
-WhileClause:
-  'while''('Expression')''{'StatementList'}'
-Identifier:
-  \w[\w\d_]*
-Number:
-  [0-9]+
-ARG:
-  Identifier | Number
-Expression:
-  Comparison
-Comparison:
-  Sum(('=='|'!='|'<'|'>'|'<='|'>=')Sum)?
-Sum:
-  Product(('+'|'-')Product)*
-Product:
-  Primary(('*'|'/')Primary)*
-Primary:
-  '('Comparison')' FuncCallArguments?
-  ARG FuncCall?
-  - Primary
-FuncCallArguments:
-  '(' Expression (',' Expression)* ')'
+Program: StatementList
+Statement: IfClause | WhileClause | Assignment ';'
+StatementList: Statement*
+Assignment: Expression ('=' Expression)?
+IfClause: 'if''('Expression')''{'StatementList'}'
+WhileClause: 'while''('Expression')''{'StatementList'}'
+Identifier: \w[\w\d_]*
+Number: [0-9]+
+ARG: Identifier | Number
+Expression: Comparison
+Comparison: Sum(('=='|'!='|'<'|'>'|'<='|'>=')Sum)?
+Sum: Product(('+'|'-')Product)*
+Product: Primary(('*'|'/')Primary)*
+Primary: '('Comparison')' FuncCallArguments? | ARG FuncCall? - Primary
+FuncCallArguments: '(' Expression (',' Expression)* ')'
 
 
 # Example 
