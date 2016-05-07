@@ -67,7 +67,7 @@ namespace EasyScriptInterpreter
 	}
 
 	public class AssignmentNode : StatementNode {
-		public ExpressionNode left_hand_side;
+		public VariableExpression left_hand_side;
 		public ExpressionNode right_hand_side;
 		public void accept(StatementVisitor v) {
 			v.visit_assignment (this);
@@ -157,11 +157,8 @@ namespace EasyScriptInterpreter
 
 	public class PrintFunction : FunctionValue {
 		public Value Exec (List<Value> args) {
-			Console.WriteLine ("PRINT:");
-			foreach (Value item in args) {
-				Console.WriteLine (item.ToString());
-			}
-			return null;
+			Console.WriteLine (String.Format("print: {0}", string.Join(", ", args)));
+			return new NullValue();
 		}
 		public override string ToString ()
 		{
@@ -195,7 +192,8 @@ namespace EasyScriptInterpreter
 			{"false", new BoolValue() {
 					val = false
 				}},
-			{"print", new PrintFunction()}
+			{"print", new PrintFunction()},
+			{"null", new NullValue()},
 		};
 		ProgramNode root;
 
@@ -258,10 +256,6 @@ namespace EasyScriptInterpreter
 		}
 
 		public void visit_assignment(AssignmentNode node) {
-			if (node.left_hand_side is FuncCallNode) {
-				node.left_hand_side.accept (this);
-				return;
-			}
 			environment_variables [(node.left_hand_side as VariableExpression).name] = node.right_hand_side.accept (this);
 		}
 
@@ -403,8 +397,8 @@ namespace EasyScriptInterpreter
 		static void Main (string[] args)
 		{
 			Lexer l = new Lexer(
-				@"a = -1 + 2;
-				b = a + 1;
+@"a = -1 + 2;
+b = a + 1;
 c = a == b;
 c = 1;
 c = true;
@@ -414,11 +408,29 @@ if (c == true){
 while (a < b + 10){
 	print(a);
 	a = a + 1;
-}");
+}"
+			);
 
-			Parser p = new Parser (l);
-			ProgramNode pn = p.parse_program ();
-			new Evaluator (pn).Run ();
+			Lexer fib_lex = new Lexer(
+@"a = 0;
+((1 + 2)(ggg, 15,))()(5,);
+b = 1;
+i = 0;
+while(i < 11) {
+	fib = a + b;
+	print(a,);
+	a = b;
+	b = fib;
+	i = i + 1;
+}"
+			);
+
+//			Parser p = new Parser (l);
+//			ProgramNode pn = p.parse_program ();
+//			new Evaluator (pn).Run ();
+
+			Parser p_fib = new Parser (fib_lex);
+			new Evaluator (p_fib.parse_program ()).Run ();
 		}
 	}
 }

@@ -4,14 +4,20 @@ using System.Linq;
 
 #region grammar
 /*
+ * Identifier = asdasdas
+ * IDentifier();
+ * 
 Program:
   StatementList
 Statement:
-  IfClause | WhileClause | Assignment ';'
+  IfClause | WhileClause | Assignment
 StatementList:
   Statement*
 Assignment:
-  Expression ('=' Expression)?
+  Identifier '=' Expression ';'
+  ExpressionStatement
+ExpressionStatement:
+  Expression ';'
 IfClause:
   'if''('Expression')''{'StatementList'}'
 WhileClause:
@@ -23,20 +29,21 @@ Number:
 ARG:
   Identifier | Number
 Expression:
-  Comparison
+  Comparison (('==' | '!=') Comparison)*
 Comparison:
-  Sum(('=='|'!='|'<'|'>'|'<='|'>=')Sum)?
+  Sum(('<'|'>'|'<='|'>=')Sum)*
 Sum:
   Product(('+'|'-')Product)*
 Product:
   Primary(('*'|'/')Primary)*
 Primary:
-  '('Comparison')' FuncCallArguments?
-  ARG FuncCall?
-  - Primary
+  Main FuncCallArguments*
+Main:
+  '(' Expression ')' 
+  Identifier
+  Number
 FuncCallArguments:
-  '(' Expression (',' Expression)* ')'
-
+  '(' Expression (',' Expression)* ','')'
 
 example: 
 a = 1 + 2; //3
@@ -119,7 +126,7 @@ namespace EasyScriptInterpreter {
 
 		public ProgramNode parse_program() {
 			ProgramNode pn = new ProgramNode ();
-			pn.Children = parse_statement_list (PARSE_STATEMENT_LIST_EXIT_CASE.END_OF_FILE);
+			pn.Children = parse_program_statement_list ();
 			return pn;
 		}
 
@@ -145,13 +152,41 @@ namespace EasyScriptInterpreter {
 			return result;
 		}
 
-		AssignmentNode parse_assignment() {
-			AssignmentNode res = new AssignmentNode ();
-			res.left_hand_side = parse_expression ();
-			if (skip_if_value("=")) {
-				res.right_hand_side = parse_expression ();
+		StatementNode parse_expression_statement() {
+			return new ExpressionStatement() { 
+				expression = parse_expression () 
+			};
+		}
+
+		StatementNode parse_assignment() {
+			ExpressionNode expr = parse_expression ();
+			if (curr_token_is_value("=")) {
+				var left_var = expr as VariableExpression;
+				if (left_var == null)
+					throw new Exception ("Variable on left side");
+				AssignmentNode res = new AssignmentNode ();
+				res.left_hand_side = left_var;
+				if (skip_if_value("=")) {
+					res.right_hand_side = parse_expression ();
+				}
+				return res;
 			}
-			return res;
+			else if (curr_token_is_value("(")) {
+				return new ExpressionStatement () {
+					expression = new FuncCallNode () {
+						identifier = expr,
+						args = parse_func_arguments (),
+					}
+				};
+			}
+			else if (curr_token_is_value(";")) {
+				return new ExpressionStatement () {
+					expression = expr,
+				};
+			}
+			else {
+				throw new Exception ("Unresolved statement");
+			}
 		}
 
 		IfNode parse_if_clause() {
@@ -161,9 +196,8 @@ namespace EasyScriptInterpreter {
 			expect_required_token_value ("{");
 			return new IfNode () {
 				condition = condition,
-				body = parse_statement_list (PARSE_STATEMENT_LIST_EXIT_CASE.CLOSING_CURLY_BRACE)
+				body = parse_block_statement_list ()
 			};
-			//expect_required_token_value ("}");
 		}
 
 		WhileNode parse_while_clause() {
@@ -173,9 +207,8 @@ namespace EasyScriptInterpreter {
 			expect_required_token_value ("{");
 			return new WhileNode () {
 				condition = condition,
-				body = parse_statement_list (PARSE_STATEMENT_LIST_EXIT_CASE.CLOSING_CURLY_BRACE)
+				body = parse_block_statement_list ()
 			};
-			//expect_required_token_value ("}");
 		}
 
 		VariableExpression parse_variable() {
@@ -199,18 +232,23 @@ namespace EasyScriptInterpreter {
 		ExpressionNode parse_comparison() {
 			var left = parse_sum ();
 			string current_token_value = current_token.value;
-			if (skip_if_value("==") || 
-				skip_if_value("!=") || 
-				skip_if_value("<")  || 
-				skip_if_value(">")  || 
-				skip_if_value("<=") || 
-				skip_if_value(">=")) {
-				var right = parse_sum ();
-				return new BinaryOpNode () {
-					left_hand_side = left,
-					right_hand_side = right,
-					operator_str = current_token_value
-				};
+			while (true) {
+				if (skip_if_value("<")  || 
+					skip_if_value(">")  ||
+					skip_if_value("==") || 
+					skip_if_value("!=") ||
+					skip_if_value("<=") || 
+					skip_if_value(">=")) {
+					var right = parse_sum ();
+					left = new BinaryOpNode () {
+						left_hand_side = left,
+						right_hand_side = right,
+						operator_str = current_token_value
+					};
+				}
+				else {
+					break;
+				}
 			}
 			return left;
 		}
@@ -254,10 +292,26 @@ namespace EasyScriptInterpreter {
 		}
 
 		ExpressionNode parse_primary() {
+			ExpressionNode result = parse_main ();
+			while (true) {
+				if (curr_token_is_value ("(")) {
+					result = new FuncCallNode () {
+						identifier = result,
+						args = parse_func_arguments()
+					};
+				}
+				else {
+					break;
+				}
+			}
+			return result;
+		}
+
+		ExpressionNode parse_main() {
 			ExpressionNode result;
 			if (skip_if_value("(")) {
 				result = parse_parenthesis ();
-				move_next ();
+				//move_next ();
 			}
 			else if (curr_token_is_type(Token.Type.Number)) {
 				result = parse_number ();
@@ -267,44 +321,24 @@ namespace EasyScriptInterpreter {
 				result = parse_variable ();
 				move_next ();
 			}
-			else if (curr_token_is_value("-")) {
-				result = parse_unary_minus ();
-			}
 			else {
 				throw new Exception ("Expected primary token");
-			}
-			List<ExpressionNode> func_args;
-			if ((func_args = parse_func_arguments()) != null) {
-				result = new FuncCallNode () {
-					identifier = result,
-					args = func_args
-				};
 			}
 			return result;
 		}
 
 		List<ExpressionNode> parse_func_arguments() {
 			List<ExpressionNode> args = null;
-			if (skip_if_value("(")) {
+			if (skip_if_value("(") && !skip_if_value(")")) {
 				args = new List<ExpressionNode> ();
 				args.Add (parse_expression ());
+				expect_required_token_value (",");
 				while(!skip_if_value(")")) {
-					expect_required_token_value (",");
 					args.Add (parse_expression ());
+					expect_required_token_value (",");
 				}
 			}
 			return args;
-		}
-
-		UnaryMinusNode parse_unary_minus() {
-			if (skip_if_value("-")) {
-				return new UnaryMinusNode () {
-					body = parse_primary ()
-				};
-			}
-			else {
-				throw new Exception ("EXPECTED UNARY MINUS");
-			}
 		}
 
 		ParenthesisNode parse_parenthesis() {
@@ -317,23 +351,50 @@ namespace EasyScriptInterpreter {
 			};
 		}
 
-		List<StatementNode> parse_statement_list(PARSE_STATEMENT_LIST_EXIT_CASE exit_case) {
+		List<StatementNode> parse_program_statement_list() {
 			List<StatementNode> result = new List<StatementNode> ();
-			while (true) {
-				if (exit_case == PARSE_STATEMENT_LIST_EXIT_CASE.CLOSING_CURLY_BRACE && skip_if_value ("}")) {
+			while(true) {
+				if (end_of_tokens) {
 					return result;
-				}
-				else if (exit_case == PARSE_STATEMENT_LIST_EXIT_CASE.END_OF_FILE && end_of_tokens) {
-					return result;
-				}
-				if (!end_of_tokens) {
-					result.Add (parse_statement ());
 				}
 				else {
-					throw new Exception ("UNEXPECTED END OF STATEMENT LIST, EXPECTED : " + exit_case.ToString());
+					result.Add (parse_statement ());
 				}
 			}
 		}
+
+		List<StatementNode> parse_block_statement_list() {
+			List<StatementNode> result = new List<StatementNode> ();
+			while (true) {
+				if (skip_if_value ("}")) {
+					return result;
+				}
+				else if (end_of_tokens) {
+					throw new Exception ("EXPECTED END OF BLOCK");
+				}
+				else {
+					result.Add (parse_statement ());
+				}
+			}
+		}
+
+//		List<StatementNode> parse_statement_list(PARSE_STATEMENT_LIST_EXIT_CASE exit_case) {
+//			List<StatementNode> result = new List<StatementNode> ();
+//			while (true) {
+//				if (exit_case == PARSE_STATEMENT_LIST_EXIT_CASE.CLOSING_CURLY_BRACE && skip_if_value ("}")) {
+//					return result;
+//				}
+//				else if (exit_case == PARSE_STATEMENT_LIST_EXIT_CASE.END_OF_FILE && end_of_tokens) {
+//					return result;
+//				}
+//				if (!end_of_tokens) {
+//					result.Add (parse_statement ());
+//				}
+//				else {
+//					throw new Exception ("UNEXPECTED END OF STATEMENT LIST, EXPECTED : " + exit_case.ToString());
+//				}
+//			}
+//		}
 
 		void move_next() {
 			position++;
